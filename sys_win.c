@@ -23,10 +23,10 @@ uint32_t Q_strcmp(uint8_t *s1, uint8_t *s2)
 }
 
 // Convert a string with a decimal or hexadecimal signed/unsigned number to an integer value
-uint32_t Q_atoi(uint8_t *str)
+int32_t Q_atoi(uint8_t *str)
 {
-    uint32_t sign = 1;
-    uint32_t val = 0;
+    int32_t sign = 1;
+    int32_t val = 0;
     
     if (*str == '-')
     {
@@ -38,7 +38,7 @@ uint32_t Q_atoi(uint8_t *str)
     if ((str[0] == '0') && ((str[1] == 'x') || (str[1] == 'X')))
     {
         str += 2;
-        while (1)
+        for(;;)
         {
             uint8_t c = *str;
             str++;
@@ -63,7 +63,7 @@ uint32_t Q_atoi(uint8_t *str)
     }
 
     // decimal
-    while (1)
+    for(;;)
     {
         uint8_t c = *str;
         str++;
