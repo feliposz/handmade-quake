@@ -14,10 +14,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     }
 
     // A few tests for the string copying
-    uint8_t s1[] = "Handmade Quake";
-    uint8_t s2[20] = {0};
-    uint8_t s3[20] = {0};
-    uint8_t s4[20] = {0};
+    char s1[] = "Handmade Quake";
+    char s2[20] = {0};
+    char s3[20] = {0};
+    char s4[20] = {0};
 
     int32_t i1 = Q_strlen(s1);
 

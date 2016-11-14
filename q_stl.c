@@ -1,7 +1,7 @@
 #include "quakedefs.h"
 
 // Copy src string to dst
-void Q_strcpy(uint8_t *dst, uint8_t *src)
+void Q_strcpy(char *dst, const char *src)
 {
     while (*src)
     {
@@ -12,7 +12,7 @@ void Q_strcpy(uint8_t *dst, uint8_t *src)
 }
 
 // Copy a number of characters from src string to dst padding with zeroes if needed
-void Q_strncpy(uint8_t *dst, uint8_t *src, int32_t count)
+void Q_strncpy(char *dst, const char *src, int32_t count)
 {
     if (count < 0)
     {
@@ -32,7 +32,7 @@ void Q_strncpy(uint8_t *dst, uint8_t *src, int32_t count)
     }
 }
 
-int32_t Q_strlen(uint8_t *str)
+int32_t Q_strlen(const char *str)
 {
     int32_t count = 0;
 
@@ -45,7 +45,7 @@ int32_t Q_strlen(uint8_t *str)
 }
 
 // String comparison (0 if equal, -1 if s1 < s2, 1 if s1 > s2)
-int32_t Q_strcmp(uint8_t *s1, uint8_t *s2)
+int32_t Q_strcmp(const char *s1, const char *s2)
 {
     // Skip part where values are equal
     while (*s1 == *s2)
@@ -64,7 +64,7 @@ int32_t Q_strcmp(uint8_t *s1, uint8_t *s2)
 }
 
 // Convert a string with a decimal or hexadecimal signed/unsigned number to an integer value
-int32_t Q_atoi(uint8_t *str)
+int32_t Q_atoi(const char *str)
 {
     int32_t sign = 1;
     int32_t val = 0;
@@ -81,7 +81,7 @@ int32_t Q_atoi(uint8_t *str)
         str += 2;
         for (;;)
         {
-            uint8_t c = *str;
+            const char c = *str;
             str++;
             // Reached a non-numerical char, so return the value found so far
             if ((c >= '0') && (c <= '9'))
@@ -106,7 +106,7 @@ int32_t Q_atoi(uint8_t *str)
     // decimal
     for (;;)
     {
-        uint8_t c = *str;
+        const char c = *str;
         str++;
         // Reached a non-numerical char, so return the value found so far
         if ((c < '0') || (c > '9'))
