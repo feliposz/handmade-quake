@@ -1,15 +1,87 @@
 #include <Windows.h>
+#include <stdint.h>
 
 #define MAX_NUM_ARGVS 50
-int argc = 1;
-char *largv[MAX_NUM_ARGVS];
+int32_t argc = 1;
+uint8_t *largv[MAX_NUM_ARGVS+1];
+
+// String comparison (0 if equal, -1 if s1 < s2, 1 if s1 > s2)
+uint32_t Q_strcmp(uint8_t *s1, uint8_t *s2)
+{
+    // Skip part where values are equal
+    while (*s1++ == *s2++)
+    {
+        // Both strings ended at terminator so they are equal
+        if (*s1 == 0)
+        {
+            return 0;
+        }
+    }
+
+    // Reached two chars that are different. Find out which comes first.
+    return ((*s1 < *s2) ? -1 : 1);
+}
+
+// Convert a string with a decimal or hexadecimal signed/unsigned number to an integer value
+uint32_t Q_atoi(uint8_t *str)
+{
+    uint32_t sign = 1;
+    uint32_t val = 0;
+    
+    if (*str == '-')
+    {
+        sign = -1;
+        str++;
+    }
+
+    // hexadecimal (prefixed by 0x or 0X)
+    if ((str[0] == '0') && ((str[1] == 'x') || (str[1] == 'X')))
+    {
+        str += 2;
+        while (1)
+        {
+            uint8_t c = *str;
+            str++;
+            // Reached a non-numerical char, so return the value found so far
+            if ((c >= '0') && (c <= '9'))
+            {
+                val = (val * 16) + (c - '0');
+            }
+            else if ((c >= 'a') && (c <= 'f'))
+            {
+                val = (val * 16) + (c - 'a' + 10);
+            }
+            else if ((c >= 'A') && (c <= 'F'))
+            {
+                val = (val * 16) + (c - 'F' + 10);
+            }
+            else
+            {
+                return sign * val;
+            }
+        }
+    }
+
+    // decimal
+    while (1)
+    {
+        uint8_t c = *str;
+        str++;
+        // Reached a non-numerical char, so return the value found so far
+        if ((c < '0') || (c > '9'))
+        {
+            return sign * val;
+        }
+        val = (val * 10) + (c - '0');
+    }    
+}
 
 // Check if parameter was given at command line and return it's position if found or 0 if not found
-int COM_CheckParm(char *Parm)
+int32_t COM_CheckParm(uint8_t *Parm)
 {
-    for (int i = 1; i < argc; i++)
+    for (int32_t i = 1; i < argc; i++)
     {
-        if (!strcmp(Parm, largv[i]))
+        if (!Q_strcmp(Parm, largv[i]))
         {
             return i;
         }
@@ -46,15 +118,13 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
             }
         }
     }
-    // Make sure last argument is empty (as a terminator?)
-    largv[argc] = "";
 
     // Just testing parameter parsing
-    int test = COM_CheckParm("-setalpha");
-    int value = 0;
+    int32_t test = COM_CheckParm("-setalpha");
+    int32_t value = 0;
     if (test > 0)
     {
-        value = atoi(largv[test + 1]);
+        value = Q_atoi(largv[test + 1]);
     }
 
     return 0;
