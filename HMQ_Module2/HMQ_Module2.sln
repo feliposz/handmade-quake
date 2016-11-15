@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.40629.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HMQ_Module2", "HMQ_Module2\HMQ_Module2.vcxproj", "{D9C62E82-BBDB-431F-8448-19A11AB6FDFF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D9C62E82-BBDB-431F-8448-19A11AB6FDFF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D9C62E82-BBDB-431F-8448-19A11AB6FDFF}.Debug|Win32.Build.0 = Debug|Win32
+		{D9C62E82-BBDB-431F-8448-19A11AB6FDFF}.Release|Win32.ActiveCfg = Release|Win32
+		{D9C62E82-BBDB-431F-8448-19A11AB6FDFF}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
