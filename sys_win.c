@@ -50,6 +50,8 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPara
     LRESULT Result = 0;
     switch (Msg)
     {
+        case WM_KEYUP:
+            // Debug
         case WM_DESTROY:
             Sys_Shutdown();
             break;
@@ -66,45 +68,92 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     COM_ParseCmdLine(lpCmdLine);
 
     // Define basic window class for RegisterClass
-    WNDCLASS wc = { 0 };
+    WNDCLASSEX wc = { 0 };
+    wc.cbSize = sizeof(wc);
     wc.hInstance = hInstance;
     wc.lpfnWndProc = MainWindowProc;
     wc.lpszClassName = "HMQ_WindowClass";
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 
     // Register Class so windows knows what kind of a window we'll be creating
-    if (!RegisterClass(&wc))
+    if (!RegisterClassEx(&wc))
     {
         exit(EXIT_FAILURE);
+    }
+
+    int BufferWidth = 640;
+    int BufferHeight = 480;
+    DWORD dwStyle = WS_OVERLAPPEDWINDOW;
+    DWORD dwExStyle = 0;
+
+    BOOL Fullscreen = FALSE;
+
+    if (Fullscreen)
+    {
+        DEVMODE dmScreenSettings = { 0 };
+        dmScreenSettings.dmSize = sizeof(dmScreenSettings);
+        dmScreenSettings.dmPelsWidth = BufferWidth;
+        dmScreenSettings.dmPelsHeight = BufferHeight;
+        dmScreenSettings.dmBitsPerPel = 32;
+        dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
+        if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL)
+        {
+            dwExStyle = WS_EX_APPWINDOW;
+            dwStyle = WS_POPUP;
+        }
+        else
+        {
+            Fullscreen = FALSE;
+        }
     }
 
     // Adjust the size of the window so that the client area is 800x600
     RECT r;
     r.top = r.left = 0;
-    r.right = 800;
-    r.bottom = 600;
-    AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
+    r.right = BufferWidth;
+    r.bottom = BufferHeight;
+    AdjustWindowRectEx(&r, dwStyle, FALSE, dwExStyle);
 
     // Create the window based on the registered class
-    HWND hWnd = CreateWindow(wc.lpszClassName,
-                             "Handmade Quake",
-                             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                             CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left, r.bottom - r.top,
-                             NULL, NULL, hInstance, NULL);
+    HWND hWnd = CreateWindowEx(dwExStyle,
+                               wc.lpszClassName,
+                               "Handmade Quake",
+                               dwStyle,
+                               CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left, r.bottom - r.top,
+                               NULL, NULL, hInstance, NULL);
 
     if (!hWnd)
     {
         exit(EXIT_FAILURE);
     }
 
+    if (Fullscreen)
+    {
+        SetWindowLong(hWnd, GWL_STYLE, 0);
+    }
+
+    ShowWindow(hWnd, nShowCmd);
+
+    /*
     // Paint the client area to black
     HDC hdc = GetDC(hWnd);
-    PatBlt(hdc, 0, 0, 800, 600, BLACKNESS);
+    PatBlt(hdc, 0, 0, BufferWidth, BufferHeight, BLACKNESS);
     ReleaseDC(hWnd, hdc);
+    */
 
     float TimeAccumulated = 0;
     float TargetTime = 1.0f / 60.0f;
     float oldtime = Sys_InitFloatTime();
+
+    BITMAPINFO BitMapInfo = { 0 };
+    BitMapInfo.bmiHeader.biSize = sizeof(BitMapInfo.bmiHeader);
+    BitMapInfo.bmiHeader.biWidth = BufferWidth;
+    BitMapInfo.bmiHeader.biHeight = -BufferHeight;
+    BitMapInfo.bmiHeader.biCompression = BI_RGB;
+    BitMapInfo.bmiHeader.biPlanes = 1;
+    BitMapInfo.bmiHeader.biBitCount = 32;
+
+    void *BackBuffer = malloc(BufferWidth * BufferHeight * 4);
 
     Host_Init();
 
@@ -120,6 +169,65 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             TranslateMessage(&Msg);
             DispatchMessage(&Msg);
         }
+
+        // Draw some random pattern to the buffer before displaying it to screen
+        uint32_t *MemoryWalker = (uint32_t *) BackBuffer;
+        for (int y = 0; y < BufferHeight; y++)
+        {
+            for (int x = 0; x < BufferWidth; x++)
+            {
+                uint8_t Red = rand() % 256;
+                uint8_t Green = x % 256;
+                uint8_t Blue = y % 256;
+
+                if (x == BufferWidth / 2)
+                {
+                    Red = 255;
+                    Green = 0;
+                    Blue = 255;
+                }
+                else if (y == BufferHeight / 2)
+                {
+                    Red = 0;
+                    Green = 255;
+                    Blue = 255;
+                }
+                else if (x == 0)
+                {
+                    Red = 255;
+                    Green = 0;
+                    Blue = 0;
+                }
+                else if (x == BufferWidth-1)
+                {
+                    Red = 0;
+                    Green = 255;
+                    Blue = 0;
+                }
+                else if (y == 0)
+                {
+                    Red = 0;
+                    Green = 0;
+                    Blue = 255;
+                }
+                else if (y == BufferHeight - 1)
+                {
+                    Red = 255;
+                    Green = 255;
+                    Blue = 0;
+                }
+
+                *MemoryWalker++ = (Red << 16)| (Green << 8) | Blue;
+            }
+        }
+
+        // Flip buffer to screen
+        HDC dc = GetDC(hWnd);
+        StretchDIBits(dc,
+                      0, 0, BufferWidth, BufferHeight,
+                      0, 0, BufferWidth, BufferHeight,
+                      BackBuffer, &BitMapInfo, DIB_RGB_COLORS, SRCCOPY);
+        ReleaseDC(hWnd, dc);
 
         float newtime = Sys_FloatTime();
         Host_Frame(newtime - oldtime);
