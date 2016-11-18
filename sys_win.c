@@ -3,6 +3,18 @@
 
 static BOOL IsRunning = TRUE;
 
+int BufferWidth = 640;
+int BufferHeight = 480;
+int BytesPerPixel = 1;
+
+typedef struct dibinfo_s
+{
+    BITMAPINFOHEADER    bmiHeader;
+    RGBQUAD             bmiColors[256];
+} dibinfo_t;
+
+dibinfo_t BitMapInfo = { 0 };
+
 // Timer functions
 
 static double GTimePassed;
@@ -44,6 +56,72 @@ void Sys_Shutdown()
     IsRunning = FALSE;
 }
 
+void DrawRectangle(int x, int y, int Width, int Height, uint8_t Red, uint8_t Green, uint8_t Blue, void *Buffer)
+{
+    uint32_t Color = (Red << 16) | (Green << 8) | Blue;
+
+    if (x < 0)
+    {
+        x = 0;
+    }
+
+    if (y < 0)
+    {
+        y = 0;
+    }
+
+    if ((x + Width) > BufferWidth)
+    {
+        Width = BufferWidth - x;
+    }
+
+    if ((y + Height) > BufferHeight)
+    {
+        Height = BufferHeight - y;
+    }
+
+    for (int Row = 0; Row < Height; Row++)
+    {
+        uint32_t *Pixel = (uint32_t *) Buffer + (y + Row) * BufferWidth + x;
+        for (int Col = 0; Col < Width; Col++)
+        {
+            *Pixel++ = Color;
+        }
+    }
+}
+
+void DrawRectangle8(int x, int y, int Width, int Height, uint8_t Color, void *Buffer)
+{
+    if (x < 0)
+    {
+        x = 0;
+    }
+
+    if (y < 0)
+    {
+        y = 0;
+    }
+
+    if ((x + Width) > BufferWidth)
+    {
+        Width = BufferWidth - x;
+    }
+
+    if ((y + Height) > BufferHeight)
+    {
+        Height = BufferHeight - y;
+    }
+
+    for (int Row = 0; Row < Height; Row++)
+    {
+        uint8_t *Pixel = (uint8_t *) Buffer + (y + Row) * BufferWidth + x;
+        for (int Col = 0; Col < Width; Col++)
+        {
+            *Pixel++ = Color;
+        }
+    }
+}
+
 // Handle messages received by windows OS
 LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
@@ -81,8 +159,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         exit(EXIT_FAILURE);
     }
 
-    int BufferWidth = 640;
-    int BufferHeight = 480;
     DWORD dwStyle = WS_OVERLAPPEDWINDOW;
     DWORD dwExStyle = 0;
 
@@ -94,7 +170,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         dmScreenSettings.dmSize = sizeof(dmScreenSettings);
         dmScreenSettings.dmPelsWidth = BufferWidth;
         dmScreenSettings.dmPelsHeight = BufferHeight;
-        dmScreenSettings.dmBitsPerPel = 32;
+        dmScreenSettings.dmBitsPerPel = BytesPerPixel * 8;
         dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
         if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL)
         {
@@ -145,15 +221,31 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     float TargetTime = 1.0f / 60.0f;
     float oldtime = Sys_InitFloatTime();
 
-    BITMAPINFO BitMapInfo = { 0 };
     BitMapInfo.bmiHeader.biSize = sizeof(BitMapInfo.bmiHeader);
     BitMapInfo.bmiHeader.biWidth = BufferWidth;
     BitMapInfo.bmiHeader.biHeight = -BufferHeight;
     BitMapInfo.bmiHeader.biCompression = BI_RGB;
     BitMapInfo.bmiHeader.biPlanes = 1;
-    BitMapInfo.bmiHeader.biBitCount = 32;
+    BitMapInfo.bmiHeader.biBitCount = BytesPerPixel * 8;
 
-    void *BackBuffer = malloc(BufferWidth * BufferHeight * 4);
+    if (BytesPerPixel == 1)
+    {
+
+        BitMapInfo.bmiColors[0].rgbRed = 0;
+        BitMapInfo.bmiColors[0].rgbGreen = 0;
+        BitMapInfo.bmiColors[0].rgbBlue = 0;
+        BitMapInfo.bmiColors[0].rgbReserved = 0;
+
+        for (int i = 1; i < 256; i++)
+        {
+            BitMapInfo.bmiColors[i].rgbRed = rand() % 256;
+            BitMapInfo.bmiColors[i].rgbGreen = rand() % 256;
+            BitMapInfo.bmiColors[i].rgbBlue = rand() % 256;
+            BitMapInfo.bmiColors[i].rgbReserved = 0;
+        }
+    }
+
+    void *BackBuffer = malloc(BufferWidth * BufferHeight * BytesPerPixel);
 
     Host_Init();
 
@@ -170,55 +262,106 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             DispatchMessage(&Msg);
         }
 
-        // Draw some random pattern to the buffer before displaying it to screen
-        uint32_t *MemoryWalker = (uint32_t *) BackBuffer;
-        for (int y = 0; y < BufferHeight; y++)
+        if (BytesPerPixel == 4)
         {
-            for (int x = 0; x < BufferWidth; x++)
+            // Draw some random pattern to the buffer before displaying it to screen
+            uint32_t *MemoryWalker = (uint32_t *) BackBuffer;
+            for (int y = 0; y < BufferHeight; y++)
             {
-                uint8_t Red = rand() % 256;
-                uint8_t Green = x % 256;
-                uint8_t Blue = y % 256;
+                for (int x = 0; x < BufferWidth; x++)
+                {
+                    uint8_t Red = rand() % 256;
+                    uint8_t Green = x % 256;
+                    uint8_t Blue = y % 256;
 
-                if (x == BufferWidth / 2)
-                {
-                    Red = 255;
-                    Green = 0;
-                    Blue = 255;
-                }
-                else if (y == BufferHeight / 2)
-                {
-                    Red = 0;
-                    Green = 255;
-                    Blue = 255;
-                }
-                else if (x == 0)
-                {
-                    Red = 255;
-                    Green = 0;
-                    Blue = 0;
-                }
-                else if (x == BufferWidth-1)
-                {
-                    Red = 0;
-                    Green = 255;
-                    Blue = 0;
-                }
-                else if (y == 0)
-                {
-                    Red = 0;
-                    Green = 0;
-                    Blue = 255;
-                }
-                else if (y == BufferHeight - 1)
-                {
-                    Red = 255;
-                    Green = 255;
-                    Blue = 0;
-                }
+                    if (x == BufferWidth / 2)
+                    {
+                        Red = 255;
+                        Green = 0;
+                        Blue = 255;
+                    }
+                    else if (y == BufferHeight / 2)
+                    {
+                        Red = 0;
+                        Green = 255;
+                        Blue = 255;
+                    }
+                    else if (x == 0)
+                    {
+                        Red = 255;
+                        Green = 0;
+                        Blue = 0;
+                    }
+                    else if (x == BufferWidth - 1)
+                    {
+                        Red = 0;
+                        Green = 255;
+                        Blue = 0;
+                    }
+                    else if (y == 0)
+                    {
+                        Red = 0;
+                        Green = 0;
+                        Blue = 255;
+                    }
+                    else if (y == BufferHeight - 1)
+                    {
+                        Red = 255;
+                        Green = 255;
+                        Blue = 0;
+                    }
 
-                *MemoryWalker++ = (Red << 16)| (Green << 8) | Blue;
+                    *MemoryWalker++ = (Red << 16) | (Green << 8) | Blue;
+                }
             }
+
+            DrawRectangle(50, 30, 400, 200, 255, 0, 0, BackBuffer);
+
+            DrawRectangle(100, 150, 100, 250, 0, 255, 128, BackBuffer);
+
+        }
+        else
+        {
+            // 8-bit palette
+            uint8_t *MemoryWalker = (uint8_t *) BackBuffer;
+            for (int y = 0; y < BufferHeight; y++)
+            {
+                for (int x = 0; x < BufferWidth; x++)
+                {
+                    uint8_t Color = rand() % 256;
+
+                    if (x == BufferWidth / 2)
+                    {
+                        Color = 1;
+                    }
+                    else if (y == BufferHeight / 2)
+                    {
+                        Color = 2;
+                    }
+                    else if (x == 0)
+                    {
+                        Color = 3;
+                    }
+                    else if (x == BufferWidth - 1)
+                    {
+                        Color = 4;
+                    }
+                    else if (y == 0)
+                    {
+                        Color = 5;
+                    }
+                    else if (y == BufferHeight - 1)
+                    {
+                        Color = 6;
+                    }
+
+                    *MemoryWalker++ = Color;
+                }
+            }
+
+            DrawRectangle8(50, 30, 400, 200, 1, BackBuffer);
+
+            DrawRectangle8(100, 150, 100, 250, 2, BackBuffer);
         }
 
         // Flip buffer to screen
