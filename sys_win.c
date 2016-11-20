@@ -5,7 +5,9 @@ static BOOL IsRunning = TRUE;
 
 int BufferWidth = 640;
 int BufferHeight = 480;
-int BytesPerPixel = 1;
+int WindowWidth = 1280;
+int WindowHeight = 960;
+int BytesPerPixel = 4;
 
 typedef struct dibinfo_s
 {
@@ -122,6 +124,82 @@ void DrawRectangle8(int x, int y, int Width, int Height, uint8_t Color, void *Bu
     }
 }
 
+void DrawPic8(int x, int y, int Width, int Height, uint8_t *Data, void *Buffer)
+{
+    int DataOffsetX = 0;
+    int DataOffsetY = 0;
+    if (x < 0)
+    {
+        DataOffsetX = -x;
+        x = 0;
+    }
+
+    if (y < 0)
+    {
+        DataOffsetY = -y;
+        y = 0;
+    }
+
+    if ((x + Width) > BufferWidth)
+    {
+        Width = BufferWidth - x;
+    }
+
+    if ((y + Height) > BufferHeight)
+    {
+        Height = BufferHeight - y;
+    }
+
+    for (int Row = 0; Row < Height - DataOffsetY; Row++)
+    {
+        uint8_t *Pixel = (uint8_t *) Buffer + (y + Row) * BufferWidth + x;
+        uint8_t *Source = Data + (DataOffsetY + Row) * Width + DataOffsetX;
+        for (int Col = 0; Col < Width - DataOffsetX; Col++)
+        {
+            *Pixel++ = *Source++;
+        }
+    }
+}
+
+void DrawPic32(int x, int y, int Width, int Height, uint8_t *Data, void *Buffer)
+{
+    int DataOffsetX = 0;
+    int DataOffsetY = 0;
+    if (x < 0)
+    {
+        DataOffsetX = -x;
+        x = 0;
+    }
+
+    if (y < 0)
+    {
+        DataOffsetY = -y;
+        y = 0;
+    }
+
+    if ((x + Width) > BufferWidth)
+    {
+        Width = BufferWidth - x;
+    }
+
+    if ((y + Height) > BufferHeight)
+    {
+        Height = BufferHeight - y;
+    }
+
+    for (int Row = 0; Row < Height - DataOffsetY; Row++)
+    {
+        uint32_t *Pixel = (uint32_t *) Buffer + (y + Row) * BufferWidth + x;
+        uint8_t *Source = Data + (DataOffsetY + Row) * Width + DataOffsetX;
+        for (int Col = 0; Col < Width - DataOffsetX; Col++)
+        {
+            // NOTE: Palette is organized in the same order we need to draw colors in the screen, so taking advantage of that!
+            uint32_t *PaletteColor = (uint32_t *)&BitMapInfo.bmiColors[*Source++];
+            *Pixel++ = *PaletteColor;
+        }
+    }
+}
+
 // Handle messages received by windows OS
 LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
@@ -144,6 +222,24 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lPara
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
     COM_ParseCmdLine(lpCmdLine);
+
+    FILE * DiscFile = fopen("DISC.lmp", "r");
+    uint32_t DiscWidth, DiscHeight;
+    uint8_t *DiscData;
+    fread(&DiscWidth, sizeof(DiscWidth), 1, DiscFile);
+    fread(&DiscHeight, sizeof(DiscHeight), 1, DiscFile);
+    DiscData = malloc(DiscWidth * DiscHeight);
+    fread(DiscData, DiscWidth * DiscHeight, 1, DiscFile);
+    fclose(DiscFile);
+
+    FILE * PauseFile = fopen("pause.lmp", "r");
+    uint32_t PauseWidth, PauseHeight;
+    uint8_t *PauseData;
+    fread(&PauseWidth, sizeof(PauseWidth), 1, PauseFile);
+    fread(&PauseHeight, sizeof(PauseHeight), 1, PauseFile);
+    PauseData = malloc(PauseWidth * PauseHeight);
+    fread(PauseData, PauseWidth * PauseHeight, 1, PauseFile);
+    fclose(PauseFile);
 
     // Define basic window class for RegisterClass
     WNDCLASSEX wc = { 0 };
@@ -168,8 +264,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     {
         DEVMODE dmScreenSettings = { 0 };
         dmScreenSettings.dmSize = sizeof(dmScreenSettings);
-        dmScreenSettings.dmPelsWidth = BufferWidth;
-        dmScreenSettings.dmPelsHeight = BufferHeight;
+        dmScreenSettings.dmPelsWidth = WindowWidth;
+        dmScreenSettings.dmPelsHeight = WindowHeight;
         dmScreenSettings.dmBitsPerPel = BytesPerPixel * 8;
         dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
         if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL)
@@ -186,8 +282,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Adjust the size of the window so that the client area is 800x600
     RECT r;
     r.top = r.left = 0;
-    r.right = BufferWidth;
-    r.bottom = BufferHeight;
+    r.right = WindowWidth;
+    r.bottom = WindowHeight;
     AdjustWindowRectEx(&r, dwStyle, FALSE, dwExStyle);
 
     // Create the window based on the registered class
@@ -226,24 +322,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     BitMapInfo.bmiHeader.biHeight = -BufferHeight;
     BitMapInfo.bmiHeader.biCompression = BI_RGB;
     BitMapInfo.bmiHeader.biPlanes = 1;
-    BitMapInfo.bmiHeader.biBitCount = BytesPerPixel * 8;
+    BitMapInfo.bmiHeader.biBitCount = (WORD) BytesPerPixel * 8;
 
-    if (BytesPerPixel == 1)
+    FILE * PaletteFile = fopen("palette.lmp", "r");
+    void *RawPaletteData = malloc(256 * 3);
+    fread(RawPaletteData, 256 * 3, 1, PaletteFile);
+    fclose(PaletteFile);
+
+    uint8_t *PaletteData = (uint8_t *) RawPaletteData;
+    for (int i = 0; i < 256; i++)
     {
-
-        BitMapInfo.bmiColors[0].rgbRed = 0;
-        BitMapInfo.bmiColors[0].rgbGreen = 0;
-        BitMapInfo.bmiColors[0].rgbBlue = 0;
-        BitMapInfo.bmiColors[0].rgbReserved = 0;
-
-        for (int i = 1; i < 256; i++)
-        {
-            BitMapInfo.bmiColors[i].rgbRed = rand() % 256;
-            BitMapInfo.bmiColors[i].rgbGreen = rand() % 256;
-            BitMapInfo.bmiColors[i].rgbBlue = rand() % 256;
-            BitMapInfo.bmiColors[i].rgbReserved = 0;
-        }
+        BitMapInfo.bmiColors[i].rgbRed = *PaletteData++;
+        BitMapInfo.bmiColors[i].rgbGreen = *PaletteData++;
+        BitMapInfo.bmiColors[i].rgbBlue = *PaletteData++;
+        BitMapInfo.bmiColors[i].rgbReserved = 0;
     }
+    free(RawPaletteData);
 
     void *BackBuffer = malloc(BufferWidth * BufferHeight * BytesPerPixel);
 
@@ -315,9 +409,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 }
             }
 
-            DrawRectangle(50, 30, 400, 200, 255, 0, 0, BackBuffer);
+            //DrawRectangle(50, 30, 250, 120, 255, 0, 0, BackBuffer);
 
-            DrawRectangle(100, 150, 100, 250, 0, 255, 128, BackBuffer);
+            //DrawRectangle(100, 80, 100, 150, 0, 255, 128, BackBuffer);
+
+            DrawPic32(10, 10, DiscWidth, DiscHeight, DiscData, BackBuffer);
+
+            DrawPic32(100, 100, PauseWidth, PauseHeight, PauseData, BackBuffer);
 
         }
         else
@@ -359,17 +457,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 }
             }
 
-            DrawRectangle8(50, 30, 400, 200, 1, BackBuffer);
+            //DrawRectangle8(50, 30, 400, 200, 1, BackBuffer);
 
-            DrawRectangle8(100, 150, 100, 250, 2, BackBuffer);
+            //DrawRectangle8(100, 150, 100, 250, 2, BackBuffer);
+
+            DrawPic8(10, 10, DiscWidth, DiscHeight, DiscData, BackBuffer);
+            
+            DrawPic8(100, 100, PauseWidth, PauseHeight, PauseData, BackBuffer);
+
         }
 
         // Flip buffer to screen
         HDC dc = GetDC(hWnd);
         StretchDIBits(dc,
+                      0, 0, WindowWidth, WindowHeight,
                       0, 0, BufferWidth, BufferHeight,
-                      0, 0, BufferWidth, BufferHeight,
-                      BackBuffer, &BitMapInfo, DIB_RGB_COLORS, SRCCOPY);
+                      BackBuffer, (BITMAPINFO *) &BitMapInfo, DIB_RGB_COLORS, SRCCOPY);
         ReleaseDC(hWnd, dc);
 
         float newtime = Sys_FloatTime();
@@ -378,6 +481,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     Host_Shutdown();
+
+    free(BackBuffer);
+    free(DiscData);
+    free(PauseData);
 
     return 0;
 }

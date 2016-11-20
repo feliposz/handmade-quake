@@ -2,6 +2,9 @@
 Thumbs.db
 ehthumbs.db
 
+# Quake copyrighted assets
+*.lmp
+
 # Folder config file
 Desktop.ini
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#define _CRT_SECURE_NO_WARNINGS
+
 typedef enum { false, true } qboolean;
 
 #include <stdint.h>
