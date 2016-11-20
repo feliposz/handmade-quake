@@ -1,4 +1,5 @@
 #include "quakedefs.h"
+#include "winquake.h"
 
 double realtime = 0;
 double old_realtime = 0;
@@ -19,7 +20,8 @@ qboolean Host_FilterTime(float timedelta)
 
 void Host_Init(void)
 {
-
+    srand(time(NULL));
+    VID_Init();
 }
 
 void Host_Frame(float timedelta)
@@ -28,9 +30,13 @@ void Host_Frame(float timedelta)
     {
         return;
     }
+
+    Sys_SendKeyEvents();
+
+    VID_Update();
 }
 
 void Host_Shutdown(void)
 {
-
+    VID_Shutdown();
 }
