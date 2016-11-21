@@ -20,6 +20,22 @@ typedef struct
 
 SAFEBITMAPINFO BitMapInfo = { 0 };
 
+typedef enum { MT_WINDOWED, MT_FULLSCREEN } modetype_t;
+
+typedef struct
+{
+    modetype_t Type;
+    int32_t Width;
+    int32_t Height;
+    uint32_t Hz;
+    uint32_t BPP;
+} videomode_t;
+
+#define MODE_LIST_MAX 40
+videomode_t ModeList[MODE_LIST_MAX];
+int ModeCount;
+int FirstFullScreenMode = -1;
+
 // Test assets and drawing functions
 // TODO: Remove these!!!
 
@@ -331,15 +347,27 @@ LRESULT CALLBACK MainWindowProc(HWND MainWindow, UINT Msg, WPARAM wParam, LPARAM
         {
             if (wParam == 'A')
             {
-                VID_SetMode(640, 480, 1);
+                VID_SetMode(0);
             }
             else if (wParam == 'S')
             {
-                VID_SetMode(800, 600, 4);
+                VID_SetMode(1);
             }
             else if (wParam == 'D')
             {
-                VID_SetMode(1024, 768, 4);
+                VID_SetMode(2);
+            }
+            else if (wParam == 'F')
+            {
+                VID_SetMode(3);
+            }
+            else if (wParam == '1')
+            {
+                VID_SetMode(FirstFullScreenMode);
+            }
+            else if (wParam == '2')
+            {
+                VID_SetMode(FirstFullScreenMode + 1);
             }
             else if (wParam == 'Q')
             {
@@ -364,46 +392,10 @@ LRESULT CALLBACK MainWindowProc(HWND MainWindow, UINT Msg, WPARAM wParam, LPARAM
     return Result;
 }
 
-void VID_SetMode(int Width, int Height, int BPP)
+void VID_SetWindowedMode(int Mode)
 {
-    if (BackBuffer)
-    {
-        SettingMode = TRUE;
-        VID_Shutdown();
-        SettingMode = FALSE;
-    }
-
-    TestAssetsLoad();
-
-    WindowWidth = Width;
-    WindowHeight = Height;
-    BufferWidth = Width;
-    BufferHeight = Height;
-    BytesPerPixel = BPP;
-
     DWORD dwStyle = WS_OVERLAPPEDWINDOW;
     DWORD dwExStyle = 0;
-
-    BOOL Fullscreen = FALSE;
-
-    if (Fullscreen)
-    {
-        DEVMODE dmScreenSettings = { 0 };
-        dmScreenSettings.dmSize = sizeof(dmScreenSettings);
-        dmScreenSettings.dmPelsWidth = WindowWidth;
-        dmScreenSettings.dmPelsHeight = WindowHeight;
-        dmScreenSettings.dmBitsPerPel = BytesPerPixel * 8;
-        dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
-        if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL)
-        {
-            dwExStyle = WS_EX_APPWINDOW;
-            dwStyle = WS_POPUP;
-        }
-        else
-        {
-            Fullscreen = FALSE;
-        }
-    }
 
     // Adjust the size of the window so that the client area is 800x600
     RECT r;
@@ -424,10 +416,77 @@ void VID_SetMode(int Width, int Height, int BPP)
     {
         exit(EXIT_FAILURE);
     }
+}
 
-    if (Fullscreen)
+void VID_SetFullscreenMode(int Mode)
+{
+    DWORD dwStyle = WS_OVERLAPPEDWINDOW;
+    DWORD dwExStyle = 0;
+
+    DEVMODE dmScreenSettings = { 0 };
+    dmScreenSettings.dmSize = sizeof(dmScreenSettings);
+    dmScreenSettings.dmPelsWidth = WindowWidth;
+    dmScreenSettings.dmPelsHeight = WindowHeight;
+    dmScreenSettings.dmBitsPerPel = BytesPerPixel * 8;
+    dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
+
+    if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL)
     {
-        SetWindowLong(MainWindow, GWL_STYLE, 0);
+        dwExStyle = WS_EX_APPWINDOW;
+        dwStyle = WS_POPUP;
+    }
+    else
+    {
+        exit(EXIT_FAILURE);
+    }
+
+    // Adjust the size of the window so that the client area is 800x600
+    RECT r;
+    r.top = r.left = 0;
+    r.right = WindowWidth;
+    r.bottom = WindowHeight;
+    AdjustWindowRectEx(&r, dwStyle, FALSE, dwExStyle);
+
+    // Create the window based on the registered class
+    MainWindow = CreateWindowEx(dwExStyle,
+                                "HMQ_WindowClass",
+                                "Handmade Quake",
+                                dwStyle,
+                                0, 0, r.right - r.left, r.bottom - r.top,
+                                NULL, NULL, GlobalInstance, NULL);
+
+    if (!MainWindow)
+    {
+        exit(EXIT_FAILURE);
+    }
+
+    SetWindowLong(MainWindow, GWL_STYLE, 0);
+}
+
+void VID_SetMode(int Mode)
+{
+    if (BackBuffer)
+    {
+        SettingMode = TRUE;
+        VID_Shutdown();
+        SettingMode = FALSE;
+    }
+
+    TestAssetsLoad();
+
+    WindowWidth = ModeList[Mode].Width;
+    WindowHeight = ModeList[Mode].Height;
+    BufferWidth = WindowWidth;
+    BufferHeight = WindowHeight;
+    BytesPerPixel = ModeList[Mode].BPP;
+
+    if (ModeList[Mode].Type == MT_WINDOWED)
+    {
+        VID_SetWindowedMode(Mode);
+    }
+    else
+    {
+        VID_SetFullscreenMode(Mode);
     }
 
     ShowWindow(MainWindow, SW_SHOWDEFAULT);
@@ -457,6 +516,76 @@ void VID_SetMode(int Width, int Height, int BPP)
     BackBuffer = malloc(BufferWidth * BufferHeight * BytesPerPixel);
 }
 
+void VID_InitWindowedMode(void)
+{
+    ModeList[ModeCount].Width = 320;
+    ModeList[ModeCount].Height = 240;
+    ModeList[ModeCount].BPP = 4;
+    ModeList[ModeCount].Type = MT_WINDOWED;
+    ModeList[ModeCount].Hz = 0;
+    ModeCount++;
+
+    ModeList[ModeCount].Width = 640;
+    ModeList[ModeCount].Height = 480;
+    ModeList[ModeCount].BPP = 4;
+    ModeList[ModeCount].Type = MT_WINDOWED;
+    ModeList[ModeCount].Hz = 0;
+    ModeCount++;
+
+    ModeList[ModeCount].Width = 800;
+    ModeList[ModeCount].Height = 600;
+    ModeList[ModeCount].BPP = 4;
+    ModeList[ModeCount].Type = MT_WINDOWED;
+    ModeList[ModeCount].Hz = 0;
+    ModeCount++;
+
+    ModeList[ModeCount].Width = 1024;
+    ModeList[ModeCount].Height = 768;
+    ModeList[ModeCount].BPP = 4;
+    ModeList[ModeCount].Type = MT_WINDOWED;
+    ModeList[ModeCount].Hz = 0;
+    ModeCount++;
+}
+
+void VID_InitFullscreenMode()
+{
+    DEVMODE DeviceMode;
+    DWORD ModeNum = 0;
+    BOOL Success = TRUE;
+    DWORD OldHeight = 0;
+    DWORD OldWidth = 0;
+
+    FirstFullScreenMode = ModeCount;
+
+    do
+    {
+        Success = EnumDisplaySettings(NULL, ModeNum, &DeviceMode);
+
+        if ((DeviceMode.dmPelsWidth == OldWidth) && (DeviceMode.dmPelsHeight == OldHeight))
+        {
+            if (ModeList[ModeCount - 1].Hz < DeviceMode.dmDisplayFrequency)
+            {
+                ModeList[ModeCount - 1].Hz = DeviceMode.dmDisplayFrequency;
+            }
+        }
+        else
+        {
+            ModeList[ModeCount].Width = DeviceMode.dmPelsWidth;
+            ModeList[ModeCount].Height = DeviceMode.dmPelsHeight;
+            ModeList[ModeCount].BPP = 4;
+            ModeList[ModeCount].Type = MT_FULLSCREEN;
+            ModeList[ModeCount].Hz = DeviceMode.dmDisplayFrequency;
+            ModeCount++;
+
+            OldWidth = DeviceMode.dmPelsWidth;
+            OldHeight = DeviceMode.dmPelsHeight;
+        }
+
+        ModeNum++;
+    } while (Success && (ModeCount < MODE_LIST_MAX));
+}
+
+
 void VID_Init(void)
 {
     // Define basic window class for RegisterClass
@@ -473,7 +602,10 @@ void VID_Init(void)
         exit(EXIT_FAILURE);
     }
 
-    VID_SetMode(640, 480, 4);
+    VID_InitWindowedMode();
+    VID_InitFullscreenMode();
+
+    VID_SetMode(0);
 }
 
 void VID_Update(void)
@@ -491,6 +623,7 @@ void VID_Update(void)
 
 void VID_Shutdown(void)
 {
+    ChangeDisplaySettings(NULL, 0);
     DestroyWindow(MainWindow);
     free(BackBuffer);
     BackBuffer = NULL;
