@@ -32,3 +32,5 @@ HandmadeQuake/Debug/
 *.obj
 *.idb
 *.exe
+.vs/
+*.vcxproj.user
